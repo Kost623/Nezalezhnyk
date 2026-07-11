@@ -1,0 +1,23 @@
+# Build artifacts
+build/
+bin/
+obj/
+*.o
+*.out
+*.exe
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# VSCodium / VS Code
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+
+# Logs
+*.log
