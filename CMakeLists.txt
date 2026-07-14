@@ -8,5 +8,13 @@ add_executable(nezalezhnyk
     src/main.cpp
     src/isa.cpp
     src/encoder.cpp
+    src/alu.cpp
 )
 target_include_directories(nezalezhnyk PRIVATE include)
+
+add_executable(alu_tests
+    tests/alu_tests.cpp
+    src/isa.cpp
+    src/alu.cpp
+)
+target_include_directories(alu_tests PRIVATE include)

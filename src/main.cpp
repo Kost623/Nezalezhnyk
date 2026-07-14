@@ -5,10 +5,10 @@
 #include "nezalezhnyk/isa.hpp"
 #include "nezalezhnyk/encoder.hpp"
 #include "nezalezhnyk/register_file.hpp"
+#include "nezalezhnyk/alu.hpp"
 
 namespace {
 
-// Друкує декодовану інструкцію в читабельному вигляді.
 void printInstruction(const nzk::Instruction& ins) {
     std::cout << "0x" << std::hex << std::setw(8) << std::setfill('0') << ins.raw
                << std::dec << std::setfill(' ')
@@ -25,17 +25,23 @@ void printInstruction(const nzk::Instruction& ins) {
 
 int main() {
     std::cout << "Nezalezhnyk — відкрита процесорна архітектура\n";
-    std::cout << "Демонстрація: асемблюємо invitro-програму та декодуємо назад\n\n";
+    std::cout << "Демонстрація: асемблюємо invitro-програму, декодуємо й виконуємо через ALU\n\n";
 
     using namespace nzk;
 
-    // Невелика тестова "програма": x1 = 5; x2 = 7; x3 = x1 + x2; store x3 в пам'ять.
     std::vector<uint32_t> program = {
-        encode::iType(opcode::ALU_I, /*rd=*/1, /*funct3=*/0b000, /*rs1=*/0, /*imm=*/5),   // addi x1, x0, 5
-        encode::iType(opcode::ALU_I, /*rd=*/2, /*funct3=*/0b000, /*rs1=*/0, /*imm=*/7),   // addi x2, x0, 7
-        encode::rType(opcode::ALU_R, /*rd=*/3, /*funct3=*/0b000, /*rs1=*/1, /*rs2=*/2, /*funct7=*/0), // add x3, x1, x2
-        encode::sType(opcode::STORE, /*funct3=*/0b011, /*rs1=*/0, /*rs2=*/3, /*imm=*/0),  // sd x3, 0(x0)
-        encode::iType(opcode::SYSTEM, /*rd=*/0, /*funct3=*/0, /*rs1=*/0, /*imm=*/0),      // ecall
+        encode::iType(opcode::ALU_I, /*rd=*/1, /*funct3=*/0b000, /*rs1=*/0, /*imm=*/5),          // addi x1, x0, 5
+        encode::iType(opcode::ALU_I, /*rd=*/2, /*funct3=*/0b000, /*rs1=*/0, /*imm=*/7),          // addi x2, x0, 7
+        encode::rType(opcode::ALU_R, /*rd=*/3, /*funct3=*/0b000, /*rs1=*/1, /*rs2=*/2, 0),        // add  x3, x1, x2
+        encode::rType(opcode::ALU_R, /*rd=*/4, /*funct3=*/0b000, /*rs1=*/2, /*rs2=*/1, 0b0100000),// sub  x4, x2, x1
+        encode::iType(opcode::ALU_I, /*rd=*/5, /*funct3=*/0b111, /*rs1=*/1, /*imm=*/3),          // andi x5, x1, 3
+        encode::iType(opcode::ALU_I, /*rd=*/6, /*funct3=*/0b110, /*rs1=*/1, /*imm=*/2),          // ori  x6, x1, 2
+        encode::iType(opcode::ALU_I, /*rd=*/7, /*funct3=*/0b100, /*rs1=*/1, /*imm=*/2),          // xori x7, x1, 2
+        encode::iType(opcode::ALU_I, /*rd=*/8, /*funct3=*/0b001, /*rs1=*/1, /*imm=*/2),          // slli x8, x1, 2
+        encode::iType(opcode::ALU_I, /*rd=*/9, /*funct3=*/0b101, /*rs1=*/2, /*imm=*/1),          // srli x9, x2, 1
+        encode::iType(opcode::ALU_I, /*rd=*/10, /*funct3=*/0b010, /*rs1=*/1, /*imm=*/10),        // slti x10, x1, 10
+        encode::sType(opcode::STORE, /*funct3=*/0b011, /*rs1=*/0, /*rs2=*/3, /*imm=*/0),          // sd   x3, 0(x0)
+        encode::iType(opcode::SYSTEM, /*rd=*/0, /*funct3=*/0, /*rs1=*/0, /*imm=*/0),              // ecall
     };
 
     RegisterFile regs;
@@ -44,23 +50,39 @@ int main() {
         Instruction ins = decode(raw);
         printInstruction(ins);
 
-        // Мінімальне "виконання" — лише для демонстрації, поки без пам'яті/ALU-модуля.
-        switch (ins.mnemonic) {
-            case Mnemonic::ADDI:
-                regs.write(ins.rd, regs.read(ins.rs1) + static_cast<uint64_t>(ins.imm));
-                break;
-            case Mnemonic::ADD:
-                regs.write(ins.rd, regs.read(ins.rs1) + regs.read(ins.rs2));
-                break;
-            default:
-                break; // store/ecall поки не виконуємо — це наступний крок
+        AluOp op = aluOpFor(ins.mnemonic);
+        if (op != AluOp::UNSUPPORTED) {
+            uint64_t a = regs.read(ins.rs1);
+            uint64_t b = (ins.format == Format::R) ? regs.read(ins.rs2)
+                                                       : static_cast<uint64_t>(ins.imm);
+            regs.write(ins.rd, executeAlu(op, a, b));
+        } else if (ins.mnemonic == Mnemonic::LUI_) {
+            regs.write(ins.rd, static_cast<uint64_t>(ins.imm));
         }
+        // store/branch/jump/system поки не виконуємо — наступний крок: модуль пам'яті
     }
 
     std::cout << "\nСтан регістрів після виконання:\n";
-    std::cout << "x1 = " << regs.read(1) << '\n';
-    std::cout << "x2 = " << regs.read(2) << '\n';
-    std::cout << "x3 = " << regs.read(3) << "  (очікується 12)\n";
+    struct Expected { int reg; uint64_t value; const char* note; };
+    std::vector<Expected> expected = {
+        {1, 5,  "addi"},
+        {2, 7,  "addi"},
+        {3, 12, "add x1+x2"},
+        {4, 2,  "sub x2-x1"},
+        {5, 1,  "andi x1&3"},
+        {6, 7,  "ori x1|2"},
+        {7, 7,  "xori x1^2"},
+        {8, 20, "slli x1<<2"},
+        {9, 3,  "srli x2>>1"},
+        {10, 1, "slti x1<10"},
+    };
+    for (const auto& e : expected) {
+        uint64_t actual = regs.read(static_cast<uint8_t>(e.reg));
+        std::cout << "x" << e.reg << " = " << actual
+                   << "  (" << e.note << ", очікується " << e.value << ")"
+                   << (actual == e.value ? "  OK" : "  MISMATCH")
+                   << '\n';
+    }
 
     return 0;
 }
