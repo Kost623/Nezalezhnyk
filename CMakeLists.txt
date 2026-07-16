@@ -9,6 +9,7 @@ add_executable(nezalezhnyk
     src/isa.cpp
     src/encoder.cpp
     src/alu.cpp
+    src/memory.cpp
 )
 target_include_directories(nezalezhnyk PRIVATE include)
 
@@ -18,3 +19,10 @@ add_executable(alu_tests
     src/alu.cpp
 )
 target_include_directories(alu_tests PRIVATE include)
+
+add_executable(memory_tests
+    tests/memory_tests.cpp
+    src/isa.cpp
+    src/memory.cpp
+)
+target_include_directories(memory_tests PRIVATE include)
