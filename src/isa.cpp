@@ -11,10 +11,14 @@ constexpr uint32_t bits(uint32_t value, int hi, int lo) {
     return (value >> lo) & mask;
 }
 
-// Знак-розширення значення довжиною bits до 64-бітного int64_t.
+// Знак-розширення значення довжиною bitsCount до 64-бітного int64_t.
+// Критично: арифметика (XOR і віднімання) має відбуватись у 64-бітному
+// домені — інакше переповнення "загортається" на 32 біти, і фінальний
+// каст у int64_t дає невірний результат (додатне число замість від'ємного).
 constexpr int64_t signExtend(uint32_t value, int bitsCount) {
-    uint32_t signBit = 1u << (bitsCount - 1);
-    return static_cast<int64_t>((value ^ signBit) - signBit);
+    uint64_t v = value;
+    uint64_t signBit = uint64_t{1} << (bitsCount - 1);
+    return static_cast<int64_t>((v ^ signBit) - signBit);
 }
 
 // --- R-тип: funct3 + funct7 -> мнемоніка (ADR 005, група 0 під-код 0) ---

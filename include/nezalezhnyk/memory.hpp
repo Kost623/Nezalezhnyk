@@ -25,6 +25,12 @@ public:
     // Записує значення за адресою відповідно до розміру store-інструкції.
     void store(Mnemonic storeOp, uint64_t addr, uint64_t value);
 
+    // "Сирі" операції над 32-бітним словом, без прив'язки до конкретної
+    // мнемоніки load/store — використовуються для завантаження коду програми
+    // в пам'ять і вибірки інструкцій у циклі fetch-decode-execute.
+    uint32_t fetchWord(uint64_t addr) const;
+    void storeWord(uint64_t addr, uint32_t value);
+
 private:
     std::vector<uint8_t> data_;
 

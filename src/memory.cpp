@@ -86,4 +86,12 @@ void Memory::store(Mnemonic storeOp, uint64_t addr, uint64_t value) {
     }
 }
 
+uint32_t Memory::fetchWord(uint64_t addr) const {
+    return static_cast<uint32_t>(readN(addr, 4));
+}
+
+void Memory::storeWord(uint64_t addr, uint32_t value) {
+    writeN(addr, value, 4);
+}
+
 } // namespace nzk
