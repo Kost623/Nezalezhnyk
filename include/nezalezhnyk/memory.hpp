@@ -31,6 +31,9 @@ public:
     uint32_t fetchWord(uint64_t addr) const;
     void storeWord(uint64_t addr, uint32_t value);
 
+    // memory.hpp, публічна секція, після storeWord():
+    uint64_t size() const { return data_.size(); }
+    
 private:
     std::vector<uint8_t> data_;
 
@@ -39,6 +42,7 @@ private:
 
     uint64_t readN(uint64_t addr, int byteCount) const;
     void writeN(uint64_t addr, uint64_t value, int byteCount);
+
 };
 
 } // namespace nzk
